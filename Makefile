@@ -1,6 +1,7 @@
 include .env
 export
 
+DB_URL=postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(SSL_MODE)
 postgres:
 	docker run --name postgres12 \
 	-p $(DB_PORT):5432 \
@@ -9,14 +10,24 @@ postgres:
 	-e POSTGRES_DB=$(DB_NAME) \
 	-d postgres:12-alpine
 
-migrateup:
-	migrate -path db/migration -database "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(SSL_MODE)" -verbose up
-
 migratecreate:
 	migrate create -ext sql -dir db/migration -seq init_schema
 
-setup:
-	make postgres &&  make migratecreate
+migratenew:
+	@name=$(if $(name),$(name),$(shell date +%Y%m%d%H%M%S)); \
+	migrate create -ext sql -dir db/migration -seq $$name
+
+migrateup:
+	migrate -path db/migration -database "$(DB_URL)" -verbose up
+
+migrateup1:
+	migrate -path db/migration -database "$(DB_URL)" -verbose up 1
+
+migratedown:
+	migrate -path db/migration -database "$(DB_URL)" -verbose down
+
+migratedown1:
+	migrate -path db/migration -database "$(DB_URL)" -verbose down 1
 
 sqlc:
 	sqlc generate
@@ -24,10 +35,13 @@ sqlc:
 test:
 	go test ./...
 
-run:
+mock:
+	mockgen -package mockdb -destination db/mock/store.go api/db/sqlc Store
+
+server:
 	go run main.go
 
 build:
 	go build
 
-.PHONY: sqlc test run build postgres createdb migrateup migreatecreate
+.PHONY: sqlc test server build postgres createdb migrateup migreatecreate mock migrateup1 migratedown migratedown1 setup

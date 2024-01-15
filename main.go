@@ -1,12 +1,16 @@
 package main
 
 import (
+	"api/api"
+	db "api/db/sqlc"
 	"api/util"
 	"database/sql"
 	"fmt"
 	"log"
 
-	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -19,21 +23,36 @@ func main() {
 
 	// Connect to DB using config values from .env file
 	dbSource := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable", config.DBUser, config.DBPass, config.DBHost, config.DBPort, config.DBName)
-	db, err := sql.Open(config.DBDriver, dbSource)
+	fmt.Println(dbSource)
+	conn, err := sql.Open(config.DBDriver, dbSource)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
-	fmt.Println("Connected to DB", db)
 
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	// run db migrations
+	// runDBMigration(config.MigrationURL, dbSource)
 
-	port := "8080"
-	if err := r.Run(fmt.Sprintf(":%s", port)); err != nil {
-		panic(err)
+	// Create new store and server
+	store := db.NewStore(conn)
+	server, err := api.NewServer(config, store)
+	if err != nil {
+		log.Fatal("cannot create server:", err)
 	}
+	err = server.Start(config.ServerAddress)
+	if err != nil {
+		log.Fatal("cannot start server:", err)
+	}
+}
+
+func runDBMigration(migrationURL string, dbSource string) {
+	migration, err := migrate.New(migrationURL, dbSource)
+	if err != nil {
+		log.Fatal("cannot create new migration instance: ", err)
+	}
+
+	if err := migration.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatal("failed to run migration up: ", err)
+	}
+
+	log.Println("db migrated successfully")
 }

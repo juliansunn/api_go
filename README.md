@@ -27,3 +27,13 @@
 ```$ curl -L https://github.com/golang-migrate/migrate/releases/download/$version/migrate.$platform-amd64.tar.gz | tar xvz
 
 ```
+
+### install mockgen
+
+```
+placeholder for commmand
+```
+
+### How do I develop with this?
+
+- If you add/remove any "queries" within the query/ directory, you should run the `make queryupdate` command, which will add update any sqlc generated code and create the necessary mocked functions for additional/existing testing.
