@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
 
@@ -30,7 +31,7 @@ func main() {
 	}
 
 	// run db migrations
-	// runDBMigration(config.MigrationURL, dbSource)
+	runDBMigration(config.MigrationURL, dbSource)
 
 	// Create new store and server
 	store := db.NewStore(conn)

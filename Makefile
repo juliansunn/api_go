@@ -8,7 +8,14 @@ postgres:
 	-e POSTGRES_USER=$(DB_USER) \
 	-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
 	-e POSTGRES_DB=$(DB_NAME) \
+	-v go_api_postgres_volume:/var/lib/postgresql/data \
 	-d postgres:12-alpine
+
+remove_postgres:
+	docker stop postgres12
+	docker rm postgres12
+	docker volume rm go_api_postgres_volume
+
 
 migratecreate:
 	migrate create -ext sql -dir db/migration -seq init_schema
@@ -33,7 +40,7 @@ sqlc:
 	sqlc generate
 
 test:
-	go test ./...
+	go test -v -cover ./...
 
 mock:
 	mockgen -package mockdb -destination db/mock/store.go api/db/sqlc Store
@@ -44,4 +51,4 @@ server:
 build:
 	go build
 
-.PHONY: sqlc test server build postgres createdb migrateup migreatecreate mock migrateup1 migratedown migratedown1 setup
+.PHONY: sqlc test server build postgres createdb migrateup migreatecreate mock migrateup1 migratedown migratedown1 remove_postgres
