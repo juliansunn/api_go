@@ -24,6 +24,7 @@ type createUserRequest struct {
 }
 
 type userResponse struct {
+	ID                int64     `json:"id"`
 	Username          string    `json:"username"`
 	FullName          string    `json:"full_name"`
 	Email             string    `json:"email"`
@@ -33,6 +34,7 @@ type userResponse struct {
 
 func newUserResponse(user db.User) userResponse {
 	return userResponse{
+		ID:                user.ID,
 		Username:          user.Username,
 		FullName:          user.FullName,
 		Email:             user.Email,
@@ -78,6 +80,15 @@ func (server *Server) createUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
+// GetUser godoc
+// @Summary      Get user
+// @Description  get user by ID
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "User ID"
+// @Success      200  {object}  userResponse
+// @Router       /users/{id} [get]
 func (server *Server) getUser(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -98,6 +109,14 @@ func (server *Server) getUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
+// ListUsers godoc
+// @Summary      List all users
+// @Description  get all users available to the current user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Success      200  {array}   userResponse
+// @Router       /users [get]
 func (server *Server) listUsers(ctx *gin.Context) {
 
 	users, err := server.store.GetUsers(ctx)
@@ -127,6 +146,14 @@ type loginUserResponse struct {
 	User userResponse `json:"user"`
 }
 
+// LoginUser godoc
+// @Summary      Login user
+// @Description  Login user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  loginUserResponse
+// @Router       /users/login [post]
 func (server *Server) loginUser(ctx *gin.Context) {
 	var req loginUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -189,6 +216,15 @@ func (server *Server) loginUser(ctx *gin.Context) {
 
 }
 
+// LogoutUser godoc
+// @Summary      Logout user
+// @Description  Logout user
+// @Tags         users
+// @Param        id   path      int  true  "User ID"
+// @Accept       json
+// @Produce      json
+// @Success      200  "successfully logged out"
+// @Router       /users/{id}/logout [post]
 func (server *Server) logoutUser(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -214,4 +250,89 @@ func (server *Server) logoutUser(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "successfully logged out"})
+}
+
+type updateUserRequest struct {
+	Username string `json:"username"`
+	FullName string `json:"full_name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// UpdateUser godoc
+// @Summary      Update user
+// @Description  Update user
+// @Tags         users
+// @Param        id   path      int  true  "User ID"
+// @Accept       json
+// @Param        user body  updateUserRequest  true  "User"
+// @Produce      json
+// @Success      200  {object}  userResponse
+// @Router       /users/{id} [patch]
+func (server *Server) updateUser(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	var req updateUserRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	arg := db.UpdateUserParams{
+		ID: id,
+		Username: sql.NullString{
+			String: req.Username,
+			Valid:  req.Username != "",
+		},
+		FullName: sql.NullString{
+			String: req.FullName,
+			Valid:  req.FullName != "",
+		},
+		Email: sql.NullString{
+			String: req.Email,
+			Valid:  req.Email != "",
+		},
+	}
+
+	if req.Password != "" {
+		hashedPassword, err := util.HashedPassword(req.Password)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+			return
+		}
+		arg.HashedPassword = sql.NullString{
+			String: hashedPassword,
+			Valid:  len(req.Password) >= 6,
+		}
+		arg.PasswordChangedAt = sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		}
+	}
+	user, err := server.store.UpdateUser(ctx, arg)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	response := newUserResponse(user)
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (server *Server) deleteUser(ctx *gin.Context) {
+
+	idStr := ctx.Param("id")
+	_, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	err = server.store.DeleteUser(ctx, idStr)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "successfully deleted"})
 }

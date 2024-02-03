@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	Environment          string        `mapstructure:"ENVIRONMENT"`
 	DBHost               string        `mapstructure:"DB_HOST"`
 	DBPort               string        `mapstructure:"DB_PORT"`
 	DBUser               string        `mapstructure:"DB_USER"`
@@ -22,6 +23,7 @@ type Config struct {
 }
 
 func Loadconfig(path string) (config Config, err error) {
+
 	viper.AddConfigPath(path)
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
