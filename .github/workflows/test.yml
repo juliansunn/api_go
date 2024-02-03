@@ -49,9 +49,8 @@ jobs:
           sudo mv migrate.linux-amd64 /usr/bin/migrate
           which migrate
 
-      - name: Use .env.sample for Tests
-        run: |
-          echo "CONFIG_FILE_NAME=.env.sample" >> $GITHUB_ENV
+      - name: Create .env file from .env.sample
+        run: cp .env.sample .env
 
       - name: Test
         run: make test

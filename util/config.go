@@ -24,15 +24,8 @@ type Config struct {
 
 func Loadconfig(path string) (config Config, err error) {
 
-	// Default config file name
-	configFileName := ".env"
-
-	if envConfigfile := viper.GetString("CONFIG_FILE_NAME"); envConfigfile != "" {
-		configFileName = envConfigfile
-	}
-
 	viper.AddConfigPath(path)
-	viper.SetConfigName(configFileName)
+	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
 
 	viper.AutomaticEnv()
