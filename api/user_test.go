@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	db "api/db/sqlc"
+	"api/token"
 
 	"api/util"
 
@@ -194,6 +196,119 @@ func TestCreateUserAPI(t *testing.T) {
 			request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 			require.NoError(t, err)
 
+			server.router.ServeHTTP(recorder, request)
+			tc.checkResponse(recorder)
+		})
+	}
+}
+
+func TestUpdateUserAPI(t *testing.T) {
+	user, _ := randomUser(t)
+	newEmail := util.RandomEmail()
+
+	testCases := []struct {
+		name          string
+		body          gin.H
+		userId        string
+		buildStubs    func(store *mockdb.MockStore)
+		setupAuth     func(t *testing.T, request *http.Request, tokenMaker token.Maker)
+		checkResponse func(recoder *httptest.ResponseRecorder)
+	}{
+		{
+			name: "OK",
+			body: gin.H{
+				"username":  user.Username,
+				"full_name": user.FullName,
+				"email":     newEmail,
+			},
+			userId: strconv.Itoa(int(user.ID)),
+			buildStubs: func(store *mockdb.MockStore) {
+				arg := db.UpdateUserParams{
+					ID: user.ID,
+					Username: sql.NullString{
+						String: user.Username,
+						Valid:  true,
+					},
+					FullName: sql.NullString{
+						String: user.FullName,
+						Valid:  true,
+					},
+					Email: sql.NullString{
+						String: newEmail,
+						Valid:  true,
+					},
+				}
+				updatedUser := db.User{
+					ID:                user.ID,
+					Username:          user.Username,
+					FullName:          user.FullName,
+					Email:             newEmail,
+					CreatedAt:         user.CreatedAt,
+					PasswordChangedAt: user.PasswordChangedAt,
+				}
+				store.EXPECT().
+					UpdateUser(gomock.Any(), gomock.Eq(arg)).
+					Times(1).
+					Return(updatedUser, nil)
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
+			},
+			checkResponse: func(recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+
+				var updatedUser db.User
+				err := json.NewDecoder(recorder.Body).Decode(&updatedUser)
+				require.NoError(t, err)
+
+				require.Equal(t, user.ID, updatedUser.ID)
+				require.Equal(t, user.Username, updatedUser.Username)
+				require.Equal(t, user.FullName, updatedUser.FullName)
+				require.Equal(t, newEmail, updatedUser.Email)
+			},
+		},
+		{
+			name: "Bad Request ID",
+			body: gin.H{
+				"username":  user.Username,
+				"full_name": user.FullName,
+				"email":     newEmail,
+			},
+			userId: "invalid-id",
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					UpdateUser(gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
+			},
+			checkResponse: func(recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+			},
+		},
+	}
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			store := mockdb.NewMockStore(ctrl)
+			tc.buildStubs(store)
+
+			server := newTestServer(t, store)
+			recorder := httptest.NewRecorder()
+
+			// Marshal body data to JSON
+			data, err := json.Marshal(tc.body)
+			require.NoError(t, err)
+
+			url := "/users/" + tc.userId
+			request, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(data))
+			require.NoError(t, err)
+			tc.setupAuth(t, request, server.tokenMaker)
 			server.router.ServeHTTP(recorder, request)
 			tc.checkResponse(recorder)
 		})

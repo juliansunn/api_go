@@ -54,4 +54,8 @@ build:
 copyenv:
 	cp .env.sample .env
 
-.PHONY: sqlc test server build postgres createdb migrateup migreatecreate mock migrateup1 migratedown migratedown1 remove_postgres
+docs:
+	statik -src=./doc/swagger -dest=./doc
+
+
+.PHONY: sqlc test server build postgres createdb migrateup migreatecreate mock migrateup1 migratedown migratedown1 remove_postgres docs

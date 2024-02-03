@@ -5,6 +5,9 @@ import (
 	"api/util"
 	"fmt"
 
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
 	db "api/db/sqlc"
 
 	"github.com/gin-gonic/gin"
@@ -37,8 +40,28 @@ func NewServer(config util.Config, store db.Store) (*Server, error) {
 	return server, nil
 }
 
+// @title           Swagger Example API
+// @version         1.0
+// @description     This is a sample server celler server.
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.url    http://www.swagger.io/support
+// @contact.email  support@swagger.io
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.basic  BasicAuth
+
+// @externalDocs.description  OpenAPI
+// @externalDocs.url          https://swagger.io/resources/o
 func (server *Server) setupRouter() {
 	router := gin.Default()
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.POST("/users", server.createUser)
 	router.POST("/users/login", server.loginUser)
 	router.POST("/users/:id/logout", server.logoutUser)
@@ -47,6 +70,8 @@ func (server *Server) setupRouter() {
 	// middleware
 	authRoutes := router.Group("/").Use(authMiddleware(server.tokenMaker))
 	authRoutes.GET("/users/:id", server.getUser)
+	authRoutes.PATCH("/users/:id", server.updateUser)
+	authRoutes.DELETE("/users/:id", server.deleteUser)
 	authRoutes.GET("/users", server.listUsers)
 
 	server.router = router
